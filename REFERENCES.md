@@ -48,3 +48,21 @@ Articles that discuss CLI language selection but in prose form, not as interacti
 | ARM/x64 split | Apple Silicon transition timeline (all Macs since mid-2023 are ARM) |
 | winget penetration | Windows 11 ships it natively; estimated ~75% of Windows developers |
 | Channel overlap coefficients | Estimated based on developer tooling correlation patterns |
+
+### Data Normalization Steps
+
+The Stack Overflow 2024 survey uses multi-select (respondents pick all OS they use), so raw totals exceed 100%:
+
+| OS | SO 2024 Raw (multi-select) |
+|----|---------------------------|
+| Windows | 62.3% |
+| macOS | 31.2% |
+| Linux (all distros) | ~27% |
+
+**Step 1: Normalize to primary OS** — Estimated ~20% overlap (devs using multiple OS). Adjusted to single-select primary: Windows ~52%, macOS ~27%, Linux ~21%.
+
+**Step 2: ARM/x64 split** — macOS: ~85% ARM (Apple Silicon since late 2020, Intel Macs discontinued mid-2023). Windows: ~98% x64. Linux: ~95% x64.
+
+**Step 3: Carve out Docker/CI** — ~4% of installs happen in container/CI environments, not on a developer's primary OS.
+
+**Step 4: Round to sum = 100%** — Final values: Windows x64 48%, macOS ARM 23%, Linux x64 17%, macOS x64 4%, Docker/CI 4%, Linux ARM 2%, Windows ARM 2%.
