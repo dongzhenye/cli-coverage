@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CLI Language Coverage Analysis</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0b;
+    --surface: #141415;
+    --surface-2: #1c1c1e;
+    --surface-3: #232326;
+    --border: rgba(255,255,255,0.08);
+    --border-active: rgba(255,255,255,0.2);
+    --text: #e5e5e7;
+    --text-muted: #8e8e93;
+    --text-dim: #555;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text);
+    padding: 48px 40px; max-width: 1100px; margin: 0 auto; line-height: 1.5;
+  }
+
+  h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 6px; }
+
+  .subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 32px; line-height: 1.6; }
+
+  /* === PANELS === */
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 24px; margin-bottom: 20px;
+  }
+
+  .panel-title {
+    font-size: 11px; font-weight: 600; color: var(--text-muted);
+    text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 14px;
+  }
+
+  .panel-subtitle {
+    font-size: 12px; font-weight: 500; color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  .channel-section .panel-subtitle { margin-top: 4px; }
+
+  /* === LANGUAGE SELECTOR === */
+  .lang-selector { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+
+  .lang-btn {
+    padding: 7px 14px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--surface-2);
+    color: var(--text-muted); font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: all 0.15s ease; user-select: none;
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .lang-btn:hover { border-color: rgba(255,255,255,0.12); background: var(--surface-3); }
+
+  .lang-btn.active {
+    border-color: var(--lc);
+    background: color-mix(in srgb, var(--lc) 12%, var(--surface-2));
+    color: var(--text);
+  }
+
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* === CHANNEL TOGGLES === */
+  .channel-section { border-top: 1px solid var(--border); padding-top: 14px; }
+
+  .channel-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .ch-tag {
+    padding: 5px 10px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--surface-2);
+    font-size: 12px; font-weight: 500; color: var(--text-muted);
+    cursor: pointer; transition: all 0.15s ease; user-select: none;
+    display: flex; align-items: center; gap: 5px;
+  }
+
+  .ch-tag:hover:not(.disabled) { border-color: rgba(255,255,255,0.12); }
+
+  .ch-tag.enabled {
+    border-color: var(--lc, var(--border-active));
+    background: color-mix(in srgb, var(--lc, #888) 10%, var(--surface-2));
+    color: var(--text);
+  }
+
+  .ch-tag.disabled {
+    opacity: 0.25; cursor: default; pointer-events: none;
+  }
+
+  .ch-quality {
+    font-size: 10px; color: var(--text-dim); font-weight: 400;
+  }
+
+  .ch-tag.enabled .ch-quality { color: var(--text-muted); }
+
+  .ch-check {
+    width: 14px; height: 14px; border-radius: 4px;
+    border: 1.5px solid var(--text-dim);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; transition: all 0.15s ease;
+  }
+
+  .ch-tag.enabled .ch-check {
+    background: var(--lc, #888); border-color: var(--lc, #888); color: white;
+  }
+
+  /* === TABS === */
+  .tab-bar {
+    display: flex; gap: 2px; margin-bottom: 20px;
+    background: var(--surface-2); border-radius: 8px; padding: 3px;
+    width: fit-content;
+  }
+
+  .tab-btn {
+    padding: 6px 16px; border-radius: 6px; border: none;
+    background: transparent; color: var(--text-muted);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .tab-btn:hover { color: var(--text); }
+
+  .tab-btn.active {
+    background: var(--surface-3); color: var(--text);
+  }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* === BAR CHART === */
+  .bar-chart { display: flex; flex-direction: column; gap: 8px; }
+
+  .bar-row {
+    display: grid; grid-template-columns: 100px 1fr 52px;
+    align-items: center; gap: 12px; height: 32px; transition: opacity 0.2s ease;
+  }
+
+  .bar-row.dimmed { opacity: 0.25; }
+
+  .bar-label {
+    font-size: 13px; font-weight: 500; text-align: right;
+    white-space: nowrap; display: flex; align-items: center;
+    justify-content: flex-end; gap: 6px;
+  }
+
+  .bar-track {
+    height: 24px; background: var(--surface-2);
+    border-radius: 4px; overflow: hidden; position: relative;
+  }
+
+  .bar-fill-potential {
+    position: absolute; top: 0; left: 0; height: 100%; border-radius: 4px;
+    background: rgba(255,255,255,0.06);
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .bar-fill {
+    position: absolute; top: 0; left: 0;
+    height: 100%; border-radius: 4px;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); opacity: 0.7;
+  }
+
+  .bar-value {
+    font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums;
+    text-align: right; transition: color 0.2s ease;
+  }
+
+  /* === TREEMAP === */
+  .treemap { display: flex; gap: 3px; height: 220px; border-radius: var(--radius-sm); overflow: hidden; }
+
+  .treemap-col {
+    display: flex; flex-direction: column; justify-content: flex-end;
+    position: relative; border-radius: var(--radius-sm); overflow: hidden;
+    background: var(--surface-2); transition: opacity 0.2s ease;
+  }
+
+  .treemap-col-label {
+    position: absolute; top: 8px; left: 8px; right: 8px;
+    font-size: 10px; font-weight: 500; color: var(--text-muted);
+    z-index: 2; line-height: 1.4;
+  }
+
+  .treemap-col-share {
+    font-weight: 600; color: var(--text);
+    font-variant-numeric: tabular-nums; font-size: 12px;
+  }
+
+  .treemap-fill {
+    width: 100%; border-radius: 0 0 4px 4px;
+    transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease;
+    position: absolute; bottom: 0; left: 0; right: 0;
+  }
+
+  .treemap-fill-label {
+    position: absolute; bottom: 6px; left: 0; right: 0;
+    text-align: center; font-size: 12px; font-weight: 700;
+    font-variant-numeric: tabular-nums; color: white;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+  }
+
+  .treemap-legend {
+    display: flex; gap: 16px; margin-top: 12px;
+    font-size: 11px; color: var(--text-muted); justify-content: center;
+  }
+
+  .treemap-legend-item { display: flex; align-items: center; gap: 4px; }
+
+  /* === MATRIX === */
+  .matrix-note {
+    font-size: 11px; color: var(--text-dim); margin-bottom: 12px;
+    padding: 8px 12px; background: var(--surface-2);
+    border-radius: var(--radius-sm); line-height: 1.5;
+  }
+
+  .matrix-wrap { overflow-x: auto; }
+
+  .matrix {
+    width: 100%; border-collapse: separate; border-spacing: 2px; font-size: 13px;
+  }
+
+  .matrix th {
+    padding: 8px 10px; font-weight: 500; color: var(--text-muted);
+    font-size: 11px; background: transparent; text-align: center; white-space: nowrap;
+  }
+
+  .matrix th:first-child { text-align: left; }
+
+  .matrix th.union-th {
+    border-left: 2px solid rgba(255,255,255,0.12); font-weight: 600;
+  }
+
+  .matrix th.share-th {
+    text-align: right; color: var(--text-dim);
+    border-left: 2px solid rgba(255,255,255,0.06);
+  }
+
+  .matrix td {
+    padding: 8px 10px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    text-align: center; transition: all 0.2s ease;
+    position: relative; font-variant-numeric: tabular-nums;
+  }
+
+  .matrix td.label-cell {
+    text-align: left; font-weight: 500;
+    background: transparent; border: none; color: var(--text);
+  }
+
+  .matrix td.share-cell {
+    text-align: right; background: transparent;
+    border: none; color: var(--text-dim);
+    border-left: 2px solid rgba(255,255,255,0.06);
+  }
+
+  .matrix td.union-cell {
+    font-weight: 600; border-color: var(--border-active);
+    border-left: 2px solid rgba(255,255,255,0.12);
+  }
+
+  .matrix td.active { border-color: var(--border-active); }
+  .matrix td.active .cell-bg { opacity: 0.10; }
+  .matrix td.inactive { opacity: 0.18; }
+  .matrix td.zero { opacity: 0.08; }
+  .matrix td.ch-disabled { opacity: 0.10; }
+
+  .matrix tr.subtotal-row td {
+    font-weight: 600; background: var(--surface-2);
+  }
+
+  .matrix tr.subtotal-row td.label-cell {
+    background: transparent; color: var(--text-muted); font-weight: 500;
+  }
+
+  .matrix .divider-row td {
+    padding: 0; height: 2px; background: rgba(255,255,255,0.10);
+    border: none; border-radius: 0;
+  }
+
+  .cell-bg {
+    position: absolute; inset: 0; border-radius: 5px;
+    opacity: 0; transition: opacity 0.2s ease;
+  }
+
+  .cell-text { position: relative; z-index: 1; }
+
+  /* === NOTES === */
+  .notes {
+    margin-top: 24px; padding: 16px 20px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); font-size: 12px;
+    color: var(--text-muted); line-height: 1.7;
+  }
+
+  .notes strong { color: var(--text); font-weight: 500; }
+  .notes code { background: var(--surface-2); padding: 1px 5px; border-radius: 3px; font-size: 11px; }
+  .notes a { color: var(--text-muted); text-decoration: underline; text-underline-offset: 2px; }
+  .notes a:hover { color: var(--text); }
+</style>
+</head>
+<body>
+
+<h1>CLI Language Coverage Analysis</h1>
+<p class="subtitle">
+  Select a language, toggle distribution channels, compare coverage across OS/hardware.<br>
+  All percentages are absolute (share of total developers). Binary and curl|sh excluded.
+</p>
+
+<!-- ===== INPUT PANEL ===== -->
+<div class="panel">
+  <div class="panel-title">Independent Variables</div>
+  <div class="panel-subtitle">Select Languages</div>
+  <div class="lang-selector" id="langSelector"></div>
+  <div class="channel-section" id="channelSection"></div>
+</div>
+
+<!-- ===== OUTPUT PANEL ===== -->
+<div class="panel">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div class="panel-title" style="margin-bottom:0">Results</div>
+    <div class="tab-bar" id="tabBar" style="margin-bottom:0">
+      <button class="tab-btn" data-tab="detail">Detail</button>
+      <button class="tab-btn" data-tab="area">Area</button>
+      <button class="tab-btn active" data-tab="coverage">Coverage</button>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-detail">
+    <div class="matrix-note">
+      Channel cells may overlap — a single user can have both npm and Homebrew.
+      The Union column shows de-duplicated coverage. Disabled channels are crossed out.
+    </div>
+    <div class="matrix-wrap">
+      <table class="matrix" id="matrix"></table>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-area">
+    <div class="treemap" id="treemap"></div>
+    <div class="treemap-legend">
+      <div class="treemap-legend-item"><div class="dot" style="background:var(--text-muted);width:6px;height:6px"></div> Filled = reachable</div>
+      <div class="treemap-legend-item"><div class="dot" style="background:var(--surface-2);width:6px;height:6px;border:1px solid var(--border)"></div> Unreachable (binary fallback only)</div>
+    </div>
+  </div>
+
+  <div class="tab-content active" id="tab-coverage">
+    <div class="bar-chart" id="barChart"></div>
+  </div>
+</div>
+
+<div class="notes" id="notes"></div>
+
+<script>
+// ========== DATA ==========
+
+const languages = [
+  { id: 'typescript', name: 'TypeScript', color: '#3178c6' },
+  { id: 'go',         name: 'Go',         color: '#00add8' },
+  { id: 'rust',       name: 'Rust',       color: '#dea584' },
+  { id: 'python',     name: 'Python',     color: '#3776ab' },
+  { id: 'shell',      name: 'Shell/Bash', color: '#4eaa25' },
+  { id: 'swift',      name: 'Swift',      color: '#f05138' },
+];
+
+const platforms = [
+  { id: 'windows-x64', name: 'Windows x64', cat: 'windows', share: 0.48 },
+  { id: 'macos-arm',   name: 'macOS ARM',   cat: 'macos',   share: 0.23 },
+  { id: 'linux-x64',   name: 'Linux x64',   cat: 'linux',   share: 0.17 },
+  { id: 'macos-x64',   name: 'macOS x64',   cat: 'macos',   share: 0.04 },
+  { id: 'docker-ci',   name: 'Docker / CI', cat: 'linux',   share: 0.04 },
+  { id: 'linux-arm',   name: 'Linux ARM',   cat: 'linux',   share: 0.02 },
+  { id: 'windows-arm', name: 'Windows ARM', cat: 'windows', share: 0.02 },
+];
+
+const channels = [
+  { id: 'npm',    name: 'npm/npx' },
+  { id: 'brew',   name: 'Homebrew' },
+  { id: 'winget', name: 'winget' },
+  { id: 'pip',    name: 'pip/pipx' },
+  { id: 'cargo',  name: 'cargo' },
+  { id: 'docker', name: 'Docker' },
+];
+
+const penetration = {
+  'windows-x64': { npm: 0.72, brew: 0,    winget: 0.75, pip: 0.35, cargo: 0.05, docker: 0.12 },
+  'macos-arm':   { npm: 0.82, brew: 0.88, winget: 0,    pip: 0.40, cargo: 0.05, docker: 0.18 },
+  'linux-x64':   { npm: 0.70, brew: 0.10, winget: 0,    pip: 0.50, cargo: 0.08, docker: 0.32 },
+  'macos-x64':   { npm: 0.78, brew: 0.85, winget: 0,    pip: 0.40, cargo: 0.05, docker: 0.15 },
+  'docker-ci':   { npm: 0.70, brew: 0.05, winget: 0,    pip: 0.45, cargo: 0.05, docker: 0.92 },
+  'linux-arm':   { npm: 0.55, brew: 0.05, winget: 0,    pip: 0.45, cargo: 0.06, docker: 0.30 },
+  'windows-arm': { npm: 0.60, brew: 0,    winget: 0.70, pip: 0.30, cargo: 0.03, docker: 0.08 },
+};
+
+// Language -> channel: null = not supported, string = support quality
+const langChannels = {
+  typescript: { npm: 'native',  brew: 'formula', winget: 'manifest', pip: null,     cargo: null,     docker: 'native' },
+  go:         { npm: null,      brew: 'native',  winget: 'native',   pip: null,     cargo: null,     docker: 'native' },
+  rust:       { npm: null,      brew: 'native',  winget: 'native',   pip: null,     cargo: 'native', docker: 'native' },
+  python:     { npm: null,      brew: 'formula', winget: 'manifest', pip: 'native', cargo: null,     docker: 'native' },
+  shell:      { npm: null,      brew: 'formula', winget: null,       pip: null,     cargo: null,     docker: 'native' },
+  swift:      { npm: null,      brew: 'native',  winget: null,       pip: null,     cargo: null,     docker: null },
+};
+
+const platformLimits = { swift: new Set(['macos-arm', 'macos-x64']) };
+
+const overlapCoeff = {
+  'npm:brew': 0.80, 'npm:winget': 0.55, 'npm:pip': 0.25, 'npm:cargo': 0.10, 'npm:docker': 0.18,
+  'brew:winget': 0, 'brew:pip': 0.30, 'brew:cargo': 0.50, 'brew:docker': 0.15,
+  'winget:pip': 0.22, 'winget:cargo': 0.08, 'winget:docker': 0.12,
+  'pip:cargo': 0.10, 'pip:docker': 0.20, 'cargo:docker': 0.15,
+};
+
+// ========== STATE ==========
+let selectedLangs = new Set(['typescript']);
+let enabledChannels = new Set(['npm', 'brew', 'winget', 'pip', 'cargo', 'docker']);
+let activeTab = 'coverage';
+
+// ========== CALCULATIONS ==========
+
+function getOverlap(a, b) {
+  return overlapCoeff[`${a}:${b}`] ?? overlapCoeff[`${b}:${a}`] ?? 0.15;
+}
+
+function calcUnion(vals) {
+  if (vals.length === 0) return 0;
+  if (vals.length === 1) return vals[0].p;
+  const sorted = [...vals].sort((a, b) => b.p - a.p);
+  let union = sorted[0].p;
+  for (let i = 1; i < sorted.length; i++) {
+    const p = sorted[i].p;
+    if (p === 0) continue;
+    let avgOv = 0;
+    for (let j = 0; j < i; j++) avgOv += getOverlap(sorted[i].id, sorted[j].id) * sorted[j].p;
+    avgOv /= sorted.slice(0, i).reduce((s, c) => s + c.p, 0) || 1;
+    union = Math.min(1, union + p - avgOv * Math.min(p, union));
+  }
+  return union;
+}
+
+// Is this channel usable for this language AND enabled by user?
+function isChActive(langId, chId) {
+  return langChannels[langId][chId] !== null && enabledChannels.has(chId);
+}
+
+function getLangChans(langId, platId) {
+  const limit = platformLimits[langId];
+  if (limit && !limit.has(platId)) return [];
+  const pp = penetration[platId];
+  const result = [];
+  for (const ch of channels) {
+    if (isChActive(langId, ch.id) && pp[ch.id] > 0) {
+      result.push({ id: ch.id, p: pp[ch.id] });
+    }
+  }
+  return result;
+}
+
+function calcPlatCov(langId, platId) {
+  return calcUnion(getLangChans(langId, platId));
+}
+
+function calcTotalCov(langId) {
+  let t = 0;
+  for (const p of platforms) t += p.share * calcPlatCov(langId, p.id);
+  return t;
+}
+
+// Coverage with ALL supported channels enabled (potential max)
+function calcTotalCovPotential(langId) {
+  let t = 0;
+  for (const p of platforms) {
+    const limit = platformLimits[langId];
+    if (limit && !limit.has(p.id)) { continue; }
+    const pp = penetration[p.id];
+    const vals = [];
+    for (const ch of channels) {
+      if (langChannels[langId][ch.id] && pp[ch.id] > 0) {
+        vals.push({ id: ch.id, p: pp[ch.id] });
+      }
+    }
+    t += p.share * calcUnion(vals);
+  }
+  return t;
+}
+
+function channelGlobalAbs(chId) {
+  let t = 0;
+  for (const p of platforms) t += p.share * (penetration[p.id][chId] || 0);
+  return t;
+}
+
+// Get the set of channels supported by ANY selected language
+function getAvailableChannels() {
+  const avail = new Map(); // chId -> { quality, colors[] }
+  for (const langId of selectedLangs) {
+    const lc = langChannels[langId];
+    const lang = languages.find(l => l.id === langId);
+    for (const ch of channels) {
+      if (lc[ch.id]) {
+        if (!avail.has(ch.id)) avail.set(ch.id, { quality: lc[ch.id], colors: [] });
+        const entry = avail.get(ch.id);
+        entry.colors.push(lang.color);
+        // Keep highest quality
+        const rank = { native: 3, formula: 2, manifest: 1 };
+        if ((rank[lc[ch.id]] || 0) > (rank[entry.quality] || 0)) entry.quality = lc[ch.id];
+      }
+    }
+  }
+  return avail;
+}
+
+// ========== RENDERING ==========
+
+function render() {
+  renderSelector();
+  renderChannels();
+  renderTab();
+  renderNotes();
+}
+
+function renderSelector() {
+  const el = document.getElementById('langSelector');
+  el.innerHTML = '';
+  for (const lang of languages) {
+    const btn = document.createElement('button');
+    btn.className = `lang-btn${selectedLangs.has(lang.id) ? ' active' : ''}`;
+    btn.style.setProperty('--lc', lang.color);
+    btn.innerHTML = `<span class="dot" style="background:${lang.color}"></span>${lang.name}`;
+    btn.onclick = () => {
+      if (selectedLangs.has(lang.id)) { if (selectedLangs.size > 1) selectedLangs.delete(lang.id); }
+      else { selectedLangs.add(lang.id); }
+      render();
+    };
+    el.appendChild(btn);
+  }
+}
+
+function renderChannels() {
+  const el = document.getElementById('channelSection');
+  const avail = getAvailableChannels();
+  // Primary selected language color for enabled styling
+  const primaryLang = languages.find(l => selectedLangs.has(l.id));
+  const pc = primaryLang ? primaryLang.color : '#888';
+
+  el.innerHTML = '<div class="panel-subtitle">Select Channels</div><div class="channel-row">' +
+    channels.map(ch => {
+      const info = avail.get(ch.id);
+      const available = !!info;
+      const enabled = available && enabledChannels.has(ch.id);
+      const quality = info ? info.quality : '';
+      const dots = info ? info.colors.map(c =>
+        `<span class="dot" style="background:${c};width:6px;height:6px"></span>`
+      ).join('') : '';
+
+      const cls = !available ? 'ch-tag disabled' : enabled ? 'ch-tag enabled' : 'ch-tag';
+
+      return `<button class="${cls}" style="--lc:${pc}" data-ch="${ch.id}" ${!available ? 'disabled' : ''}>
+        <span class="ch-check">${enabled ? '&#10003;' : ''}</span>
+        ${dots}
+        ${ch.name}
+        ${quality ? `<span class="ch-quality">${quality}</span>` : ''}
+      </button>`;
+    }).join('') + '</div>';
+
+  // Bind click handlers
+  el.querySelectorAll('.ch-tag:not(.disabled)').forEach(btn => {
+    btn.onclick = () => {
+      const chId = btn.dataset.ch;
+      if (enabledChannels.has(chId)) enabledChannels.delete(chId);
+      else enabledChannels.add(chId);
+      render();
+    };
+  });
+}
+
+function renderTab() {
+  // Update tab buttons
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === activeTab);
+    btn.onclick = () => { activeTab = btn.dataset.tab; renderTab(); };
+  });
+
+  // Show active tab
+  document.querySelectorAll('.tab-content').forEach(el => {
+    el.classList.toggle('active', el.id === `tab-${activeTab}`);
+  });
+
+  // Render active tab content
+  if (activeTab === 'coverage') renderBarChart();
+  else if (activeTab === 'area') renderTreemap();
+  else if (activeTab === 'detail') renderMatrix();
+}
+
+function renderBarChart() {
+  const el = document.getElementById('barChart');
+  const sorted = [...languages].sort((a, b) => calcTotalCov(b.id) - calcTotalCov(a.id));
+  const maxPot = Math.max(...sorted.map(l => calcTotalCovPotential(l.id)), 0.01);
+
+  el.innerHTML = sorted.map(lang => {
+    const cov = calcTotalCov(lang.id);
+    const pot = calcTotalCovPotential(lang.id);
+    const pct = (cov * 100).toFixed(1);
+    const barW = (cov / maxPot) * 100;
+    const potW = (pot / maxPot) * 100;
+    const active = selectedLangs.has(lang.id);
+    const hasGap = pot > cov + 0.005; // show potential only if meaningful difference
+
+    return `
+      <div class="bar-row${active ? '' : ' dimmed'}">
+        <div class="bar-label"><span class="dot" style="background:${lang.color}"></span>${lang.name}</div>
+        <div class="bar-track">
+          ${hasGap ? `<div class="bar-fill-potential" style="width:${potW}%"></div>` : ''}
+          <div class="bar-fill" style="width:${barW}%;background:${lang.color}"></div>
+        </div>
+        <div class="bar-value" style="color:${active ? lang.color : 'var(--text-dim)'}">${pct}%</div>
+      </div>`;
+  }).join('');
+}
+
+function renderTreemap() {
+  const el = document.getElementById('treemap');
+  const active = [...selectedLangs];
+  const multi = active.length > 1;
+
+  el.innerHTML = platforms.map(p => {
+    const wPct = p.share * 100;
+    const fills = active.map(langId => {
+      const lang = languages.find(l => l.id === langId);
+      const relCov = calcPlatCov(langId, p.id);
+      const absCov = p.share * relCov;
+      const hPct = relCov * 100;
+      const opacity = multi ? 0.4 : 0.6;
+      const label = !multi && hPct > 18
+        ? `<div class="treemap-fill-label">${(absCov * 100).toFixed(1)}%</div>` : '';
+      return `<div class="treemap-fill" style="height:${hPct}%;background:${lang.color};opacity:${opacity}">${label}</div>`;
+    }).join('');
+
+    let multiLabels = '';
+    if (multi) {
+      multiLabels = active.map(id => {
+        const lang = languages.find(l => l.id === id);
+        return `<span style="color:${lang.color};font-size:10px;font-weight:600">${(p.share * calcPlatCov(id, p.id) * 100).toFixed(1)}%</span>`;
+      }).join(' ');
+    }
+
+    return `
+      <div class="treemap-col" style="flex:${wPct}">
+        <div class="treemap-col-label">${p.name}<br>
+          <span class="treemap-col-share">${(p.share * 100).toFixed(0)}%</span>
+          ${multi ? `<br>${multiLabels}` : ''}
+        </div>
+        ${fills}
+      </div>`;
+  }).join('');
+}
+
+function renderMatrix() {
+  const table = document.getElementById('matrix');
+  const active = [...selectedLangs];
+
+  let html = '<thead><tr>';
+  html += '<th style="text-align:left;min-width:110px">OS / Hardware</th>';
+  for (const ch of channels) {
+    const disabled = !enabledChannels.has(ch.id);
+    html += `<th${disabled ? ' style="text-decoration:line-through;opacity:0.3"' : ''}>${ch.name}</th>`;
+  }
+  html += '<th class="union-th">Union</th>';
+  html += '<th class="share-th">Share</th>';
+  html += '</tr></thead><tbody>';
+
+  for (const p of platforms) {
+    html += '<tr>';
+    html += `<td class="label-cell">${p.name}</td>`;
+
+    for (const ch of channels) {
+      const rel = penetration[p.id][ch.id] || 0;
+      const abs = p.share * rel;
+      const chDisabled = !enabledChannels.has(ch.id);
+
+      if (rel === 0) {
+        html += '<td class="zero"><span class="cell-text">-</span></td>';
+        continue;
+      }
+
+      if (chDisabled) {
+        html += `<td class="ch-disabled" style="text-decoration:line-through"><span class="cell-text">${(abs * 100).toFixed(1)}%</span></td>`;
+        continue;
+      }
+
+      let isActive = false, activeColor = '';
+      for (const langId of active) {
+        const limit = platformLimits[langId];
+        if (limit && !limit.has(p.id)) continue;
+        if (langChannels[langId][ch.id] && rel > 0) {
+          isActive = true;
+          activeColor = languages.find(l => l.id === langId).color;
+          break;
+        }
+      }
+
+      const cls = isActive ? 'active' : 'inactive';
+      const bg = isActive ? `<div class="cell-bg" style="background:${activeColor}"></div>` : '';
+      html += `<td class="${cls}">${bg}<span class="cell-text">${(abs * 100).toFixed(1)}%</span></td>`;
+    }
+
+    const bestCov = active.reduce((best, id) => {
+      const c = calcPlatCov(id, p.id);
+      return c > best.cov ? { id, cov: c } : best;
+    }, { id: '', cov: 0 });
+    const uAbs = p.share * bestCov.cov;
+    const uColor = bestCov.id ? languages.find(l => l.id === bestCov.id).color : 'var(--text-muted)';
+    html += `<td class="union-cell" style="color:${uColor}"><span class="cell-text">${(uAbs * 100).toFixed(1)}%</span></td>`;
+    html += `<td class="share-cell">${(p.share * 100).toFixed(0)}%</td>`;
+    html += '</tr>';
+  }
+
+  // Divider
+  const colCount = 1 + channels.length + 1 + 1;
+  html += `<tr class="divider-row"><td colspan="${colCount}"></td></tr>`;
+
+  // Total row
+  html += '<tr class="subtotal-row">';
+  html += '<td class="label-cell">Total</td>';
+  for (const ch of channels) {
+    const g = channelGlobalAbs(ch.id);
+    const chDisabled = !enabledChannels.has(ch.id);
+    const style = chDisabled ? ' style="text-decoration:line-through;opacity:0.3"' : '';
+    html += `<td${style}><span class="cell-text">${(g * 100).toFixed(1)}%</span></td>`;
+  }
+  const globalBest = active.reduce((best, id) => {
+    const c = calcTotalCov(id);
+    return c > best.cov ? { id, cov: c } : best;
+  }, { id: '', cov: 0 });
+  const gColor = globalBest.id ? languages.find(l => l.id === globalBest.id).color : 'var(--text-muted)';
+  html += `<td class="union-cell" style="color:${gColor};border-left:2px solid rgba(255,255,255,0.12)"><span class="cell-text">${(globalBest.cov * 100).toFixed(1)}%</span></td>`;
+  html += '<td class="share-cell">100%</td>';
+  html += '</tr></tbody>';
+
+  table.innerHTML = html;
+}
+
+function renderNotes() {
+  document.getElementById('notes').innerHTML = `
+    <strong>Data</strong>
+    <a href="https://survey.stackoverflow.co/2024/technology/#1-operating-system" target="_blank">Stack Overflow Developer Survey 2024</a>
+    (Win 62%, macOS 31%, Linux ~27% multi-select; normalized to primary OS, split by ARM/x64).
+    2025 survey not yet published at time of creation — check <a href="https://survey.stackoverflow.co/2025" target="_blank">SO 2025</a> for updates.<br>
+    winget: built into Win 11, available via App Installer on Win 10 — est. 75% of Windows devs.<br>
+    Binary/curl|sh excluded — universal fallbacks that inflate all languages to ~95%+.<br><br>
+    <strong>Model</strong>
+    Coverage = &Sigma;(OS_share &times; union(enabled_channel_penetrations)).
+    Union uses pairwise overlap coefficients (e.g., 80% of macOS npm users also have Homebrew).
+    Disabling a channel removes it from the Union; the gray bar in Coverage tab shows potential gain from re-enabling.<br><br>
+    <strong>Not shown</strong>
+    C#/.NET (NativeAOT) is an emerging CLI option with native winget/brew support,
+    but lacks ecosystem adoption.
+    <code>bun build --compile</code> / <code>deno compile</code> give TypeScript standalone binary capability (40-90MB) — not reflected in coverage.
+  `;
+}
+
+// ========== INIT ==========
+render();
+</script>
+
+<footer style="
+  margin-top: 48px;
+  padding: 20px 0;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  text-align: center;
+  font-size: 12px;
+  color: #555;
+">
+  <a href="https://dongzhenye.com" target="_blank" rel="noopener noreferrer"
+     style="color: #8e8e93; text-decoration: none; transition: color 0.15s ease;"
+     onmouseover="this.style.color='#e5e5e7'" onmouseout="this.style.color='#8e8e93'">
+    Dong Zhenye
+  </a>
+</footer>
+
+</body>
+</html>
