@@ -44,6 +44,10 @@ No direct competitor exists for interactive "language x channel x OS" coverage a
 
 See [REFERENCES.md](./REFERENCES.md) for the full competitive analysis.
 
+## Related
+
+- Blog post (coming soon): *Choosing the Right Language for Your CLI Tool: A Data-Driven Framework*
+
 ## Tech
 
 Single static HTML file. No build step, no dependencies, no framework. Dark theme, responsive.
